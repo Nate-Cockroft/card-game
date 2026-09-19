@@ -1,5 +1,7 @@
+import { createDeck } from "../src/cards.js";
+
 const WS_ORIGIN = "http://127.0.0.1:8787";
-const DECK_SIZE = 80;
+const DECK_SIZE = createDeck().length;
 
 function connect(room, name, create) {
   const u = new URL(`${WS_ORIGIN}/ws`);
@@ -101,7 +103,7 @@ async function main() {
   console.log("[4] COMPARE RESOLVED. phase:", sA.phase, "winner:", sA.winnerId || "none", "turn:", name(sA, sA.activePlayerId));
   const total2 = sA.players.reduce((n, p) => n + p.handCount, 0) + sA.deckCount + sA.potCount;
   if (total2 !== DECK_SIZE) throw new Error(`card conservation broken: ${total2}`);
-  console.log("[5] CARD CONSERVATION OK (80)");
+  console.log(`[5] CARD CONSERVATION OK (${DECK_SIZE})`);
 
   // draw test: active player draws
   const dWs = sA.activePlayerId === sA.myId ? A.ws : B.ws;

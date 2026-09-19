@@ -14,6 +14,9 @@ import {
   isBot,
   publicView,
 } from "../src/game.js";
+import { createDeck } from "../src/cards.js";
+
+const DECK_SIZE = createDeck().length;
 
 function twoPlayerGame() {
   const g = createGame("TEST");
@@ -28,7 +31,7 @@ test("starts with 7 cards each and a deck", () => {
   const g = twoPlayerGame();
   assert.equal(g.hands.a.length, 7);
   assert.equal(g.hands.b.length, 7);
-  assert.equal(g.deck.length, 80 - 14);
+  assert.equal(g.deck.length, DECK_SIZE - 14);
   assert.equal(g.phase, "playing");
 });
 
@@ -86,7 +89,7 @@ test("game with a bot plays and the bot keeps playing its turn", () => {
   // round resolved, a winner may or may not exist
   assert.ok(["playing", "finished"].includes(g.phase));
   const totalCards = g.hands.a.length + g.hands[bot.id].length + g.deck.length + g.pot.length;
-  assert.equal(totalCards, 80);
+  assert.equal(totalCards, DECK_SIZE);
 });
 
 test("only the active player can play as leader", () => {
@@ -121,7 +124,7 @@ test("leader plays a card and chooses a stat, others respond, loser collects", (
   assert.equal(g.lastResult.loserId, other);
   assert.equal(g.lastResult.count, 2);
   const totalCards = g.hands.a.length + g.hands.b.length + g.deck.length + g.pot.length;
-  assert.equal(totalCards, 80);
+  assert.equal(totalCards, DECK_SIZE);
 });
 
 test("drawing takes a deck card and advances the turn", () => {

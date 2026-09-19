@@ -14,7 +14,8 @@ export const DEFAULT_MAX_PLAYERS = 6;
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
 
-// 52 creature cards with 4 stats each.
+// Beast deck plus the absurd guest roster (stats seed from the name, so list
+// order never changes existing cards' stats).
 const CARD_TEMPLATES = [
   ["Ember Dragon", "🐉"],
   ["Frost Drake", "🐲"],
@@ -96,6 +97,26 @@ const CARD_TEMPLATES = [
   ["Midnight Swan", "🦢"],
   ["Pale Leviathan", "🐳"],
   ["Iron Bull", "🐂"],
+  ["Mercury", "⚫"],
+  ["Venus", "🟡"],
+  ["Earth", "🌍"],
+  ["Mars", "🔴"],
+  ["Jupiter", "🟠"],
+  ["Saturn", "🪐"],
+  ["Uranus", "🟦"],
+  ["Neptune", "🔵"],
+  ["The Moon", "🌕"],
+  ["The Sun", "☀️"],
+  ["Donald Trump", "🍊"],
+  ["A Refrigerator", "🧊"],
+  ["Karl Marx", "📕"],
+  ["Charlie Kirk", "🎙️"],
+  ["Skateboard", "🛹"],
+  ["Angel", "👼"],
+  ["Jesus", "✝️"],
+  ["Israel", "🇮🇱"],
+  ["Nuclear Bomb", "☢️"],
+  ["Josef Stalin", "🚜"],
 ];
 
 function mulberry32(seed) {
