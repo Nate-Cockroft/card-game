@@ -96,6 +96,7 @@ test("leader plays a card and chooses a stat, others respond, loser collects", (
   const g = twoPlayerGame();
   const leader = activePlayerId(g);
   const other = leader === "a" ? "b" : "a";
+  const beforeOther = g.hands[other].length;
 
   // force Bob to lose: give leader a high card, give other a low card on chosen stat
   const leadCard = { ...g.hands[leader][0], attack: 1000 };
@@ -112,6 +113,10 @@ test("leader plays a card and chooses a stat, others respond, loser collects", (
 
   // the lowest player collected both cards into their hand
   assert.ok(g.hands[other].length > g.hands[leader].length);
+  // loser nets +1: gave up 1 card, received all 2 played cards
+  assert.ok(g.hands[other].length >= beforeOther + 1);
+  assert.equal(g.lastResult.loserId, other);
+  assert.equal(g.lastResult.count, 2);
   const totalCards = g.hands.a.length + g.hands.b.length + g.deck.length + g.pot.length;
   assert.equal(totalCards, 80);
 });

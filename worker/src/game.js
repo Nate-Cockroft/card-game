@@ -25,6 +25,7 @@ export function createGame(code) {
     activePlay: null, // {card, stat} from the active player
     responses: {}, // playerId -> card chosen during compare
     pot: [], // accumulated cards from tied rounds
+    lastResult: null, // {loserId|null, count} from the most recent resolved round
     winnerId: null,
     log: [],
   };
@@ -160,6 +161,7 @@ export function playAsActive(state, id, cardId, stat) {
   state.hands[id].splice(idx, 1);
   state.activePlay = { card, stat };
   state.responses = {};
+  state.lastResult = null;
   state.phase = "compare";
   log(state, `${nameOf(state, id)} plays ${card.emoji} ${card.name} and challenges ${stat}!`);
   return { ok: true };
@@ -194,6 +196,7 @@ export function resolveRound(state) {
 
   if (tied.length > 1) {
     state.pot.push(...cards);
+    state.lastResult = { loserId: null, count: cards.length };
     state.activePlay = null;
     state.responses = {};
     state.phase = "playing";
@@ -202,6 +205,7 @@ export function resolveRound(state) {
     const loser = tied[0];
     const winnings = [...cards, ...state.pot];
     state.pot = [];
+    state.lastResult = { loserId: loser, count: winnings.length };
     state.hands[loser].push(...winnings);
     log(state, `${nameOf(state, loser)} had the lowest ${stat} (${min}) and collects ${
       winnings.length
@@ -258,6 +262,7 @@ export function publicView(state, forPlayerId) {
     activePlay: state.activePlay,
     responses: state.responses, // card objects of all responses (hidden from hand views)
     potCount: state.pot.length,
+    lastResult: state.lastResult,
     winnerId: state.winnerId,
     log: state.log.slice(-12),
     myHand: state.hands[forPlayerId] || [],

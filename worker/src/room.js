@@ -236,8 +236,9 @@ export class Room {
     }
 
     if (g.phase === "compare") {
-      // every bot that hasn't responded yet plays
-      const pendingBots = g.players.filter((p) => p.bot && !g.responses[p.id]);
+      // every bot except the active leader that hasn't responded yet plays
+      const active = activePlayerId(g);
+      const pendingBots = g.players.filter((p) => p.bot && p.id !== active && !g.responses[p.id]);
       const bot = pendingBots[0];
       if (bot && g.hands[bot.id]?.length) {
         const card = g.hands[bot.id][Math.floor(Math.random() * g.hands[bot.id].length)];
