@@ -80,7 +80,8 @@ function connectGame(roomId, create) {
 
 function handleMessage(msg) {
   if (msg.type === "error") {
-    if (!state || state.phase === "lobby") showLobbyError(msg.message);
+    if (!state) showLobbyError(msg.message);
+    else if (state.phase === "lobby") showWaitingError(msg.message);
     else setStatus(msg.message);
     return;
   }
@@ -98,6 +99,13 @@ function showLobbyError(msg) {
   el.textContent = msg;
   el.hidden = false;
   showScreen("lobby");
+}
+
+function showWaitingError(msg) {
+  showScreen("waiting");
+  const el = $("waiting-error");
+  el.textContent = msg;
+  el.hidden = false;
 }
 
 function send(obj) {

@@ -58,8 +58,11 @@ test("bots take a player slot and can be added", () => {
   assert.equal(isBot(g, b1.id), true);
   const b2 = addBot(g, "a");
   assert.equal(b2.ok, true);
+  const idsBefore = g.players.map((p) => p.id);
   const b3 = addBot(g, "a");
   assert.equal(b3.ok, false); // full at 3 now
+  assert.deepEqual(g.players.map((p) => p.id), idsBefore); // rejected add must not evict anyone
+  assert.equal(g.hostId, "a"); // host stays in charge
   const join = addPlayer(g, "b", "Bob");
   assert.equal(join.ok, false); // bots occupied all slots
 });
