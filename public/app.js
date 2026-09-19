@@ -1,6 +1,6 @@
 // Stat Clash client.
 // Points WORKER_URL at your deployed Cloudflare Worker (or use the local override).
-const WORKER_URL = "https://cardsgame-worker.REPLACE-WITH.workers.dev";
+const WORKER_URL = "https://cardsgame-worker.nathaniel-cockroft.workers.dev";
 const STAT_LABELS = { health: "Health", speed: "Speed", attack: "Attack", defense: "Defense" };
 
 let ws = null;
