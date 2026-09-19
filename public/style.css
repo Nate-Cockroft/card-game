@@ -348,6 +348,10 @@ button.primary {
   z-index: 50;
 }
 
+#winner-overlay[hidden] {
+  display: none;
+}
+
 #winner-overlay .card {
   max-width: 380px;
   text-align: center;
