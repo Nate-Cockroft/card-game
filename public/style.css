@@ -363,6 +363,30 @@ button.primary {
   white-space: nowrap;
 }
 
+.reveal-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.card.reveal-in {
+  animation: reveal-flip 0.45s ease both;
+  will-change: transform, opacity;
+}
+
+@keyframes reveal-flip {
+  from {
+    transform: rotateY(90deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+}
+
 /* ---- result banner (loser collects) ---- */
 
 #result-banner {

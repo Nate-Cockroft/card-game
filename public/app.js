@@ -11,6 +11,7 @@ let myId = null;
 let selectedCard = null;
 let lobbies = [];
 let collecting = false;
+const REVEAL_MS = 1100;
 
 const $ = (id) => document.getElementById(id);
 const screens = { lobby: $("lobby"), waiting: $("waiting"), game: $("game") };
@@ -170,23 +171,21 @@ function renderGame(prev) {
 
   const resolving = !!(state.lastResult && prev && prev.phase === "compare" && state.phase !== "compare");
   if (resolving) {
-    const tableEl = $("table");
-    const cards = [...tableEl.querySelectorAll(".card")];
-    if (cards.length) {
-      collecting = true;
-      $("pot-target").hidden = state.lastResult.loserId !== null;
-      animateCardsTo(cards, state.lastResult, () => {
+    const result = state.lastResult;
+    collecting = true;
+    $("pot-target").hidden = result.loserId !== null;
+    showResultBanner(result);
+    const cards = showReveal(result.played || [], result.stat);
+    setTimeout(() => {
+      animateCardsTo(cards, result, () => {
         collecting = false;
         $("pot-target").hidden = true;
-        tableEl.innerHTML = "";
         renderTable();
-        if (state.lastResult.loserId === myId) renderHand();
+        if (result.loserId === myId) renderHand();
         if (state.phase === "finished") showWinner();
       });
-    } else {
-      renderTable();
-    }
-  } else {
+    }, REVEAL_MS);
+  } else if (!collecting) {
     renderTable();
   }
 
@@ -232,7 +231,6 @@ function animateCardsTo(cards, result, done) {
   const target = targetEl && targetEl.isConnected ? targetEl : $("table");
   const t = target.getBoundingClientRect();
   let remaining = cards.length;
-  showResultBanner(result);
   if (!remaining) {
     if (done) done();
     return;
@@ -344,7 +342,7 @@ function renderTable() {
 
   const led = el.appendChild(document.createElement("div"));
   led.className = "led-card";
-  const leadCardEl = cardEl(state.activePlay.card, { chosenStat: state.activePlay.stat });
+  const leadCardEl = cardEl(null, { hide: true });
   leadCardEl.dataset.player = state.activePlayerId;
   led.appendChild(leadCardEl);
 
@@ -373,6 +371,23 @@ function renderTable() {
       if (slotCard) flyCard(slotCard, sourceOf(id), { cls: "fly-resp", delay: 80 + i * 60 });
     }
   });
+}
+
+// After the last card is down, flip all just-played cards face-up for the reveal.
+function showReveal(played, stat) {
+  const el = $("table");
+  el.innerHTML = "";
+  const callout = el.appendChild(document.createElement("div"));
+  callout.className = "stat-callout";
+  callout.textContent = `Challenging ${STAT_LABELS[stat]}!`;
+  const wrap = el.appendChild(document.createElement("div"));
+  wrap.className = "reveal-row";
+  played.forEach((c) => {
+    const card = cardEl(c, { chosenStat: stat });
+    card.classList.add("reveal-in");
+    wrap.appendChild(card);
+  });
+  return [...wrap.querySelectorAll(".card")];
 }
 
 function renderStatus() {

@@ -193,6 +193,38 @@ test("publicView hides other players' hands", () => {
   assert.equal(v.players[0].handCount, 7);
 });
 
+test("played cards stay hidden until the round resolves", () => {
+  const g = createGame("TEST");
+  addPlayer(g, "a", "Alice");
+  addPlayer(g, "b", "Bob");
+  addPlayer(g, "c", "Carl");
+  startGame(g);
+  const leader = activePlayerId(g);
+  const others = g.order.filter((x) => x !== leader);
+  const r1 = others[0];
+  const r2 = others[1];
+
+  playAsActive(g, leader, g.hands[leader][0].id, "health");
+
+  // while the round is open no one sees the leader's card, only the stat
+  assert.deepEqual(publicView(g, leader).activePlay, { stat: "health" });
+  assert.deepEqual(publicView(g, r1).activePlay, { stat: "health" });
+
+  playAsResponder(g, r1, g.hands[r1][0].id); // compare is still open
+
+  // a responder sees their own card, everyone else only gets a placeholder
+  const own = publicView(g, r1);
+  assert.ok(own.responses[r1].name);
+  const foe = publicView(g, r2);
+  assert.deepEqual(foe.responses[r1], { hidden: true });
+
+  playAsResponder(g, r2, g.hands[r2][0].id); // last one in -> round resolves
+
+  // after the resolve the played cards are revealed in lastResult
+  assert.equal(g.lastResult.stat, "health");
+  assert.equal(g.lastResult.played.length, 3);
+});
+
 test("cannot start with fewer than 2 players", () => {
   const g = createGame("X");
   addPlayer(g, "a", "Alice");

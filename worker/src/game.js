@@ -163,7 +163,7 @@ export function playAsActive(state, id, cardId, stat) {
   state.responses = {};
   state.lastResult = null;
   state.phase = "compare";
-  log(state, `${nameOf(state, id)} plays ${card.emoji} ${card.name} and challenges ${stat}!`);
+  log(state, `${nameOf(state, id)} plays a card face down and challenges ${stat}!`);
   return { ok: true };
 }
 
@@ -196,7 +196,7 @@ export function resolveRound(state) {
 
   if (tied.length > 1) {
     state.pot.push(...cards);
-    state.lastResult = { loserId: null, count: cards.length };
+    state.lastResult = { loserId: null, count: cards.length, played: cards, stat };
     state.activePlay = null;
     state.responses = {};
     state.phase = "playing";
@@ -205,7 +205,7 @@ export function resolveRound(state) {
     const loser = tied[0];
     const winnings = [...cards, ...state.pot];
     state.pot = [];
-    state.lastResult = { loserId: loser, count: winnings.length };
+    state.lastResult = { loserId: loser, count: winnings.length, played: cards, stat };
     state.hands[loser].push(...winnings);
     log(state, `${nameOf(state, loser)} had the lowest ${stat} (${min}) and collects ${
       winnings.length
@@ -259,8 +259,20 @@ export function publicView(state, forPlayerId) {
     turnIndex: state.turnIndex,
     activePlayerId: activePlayerId(state),
     deckCount: state.deck.length,
-    activePlay: state.activePlay,
-    responses: state.responses, // card objects of all responses (hidden from hand views)
+    // While a round is open, hide the leader's card; each responder only sees
+    // their own card (others appear as face-down placeholders).
+    activePlay:
+      state.activePlay && state.phase === "compare"
+        ? { stat: state.activePlay.stat }
+        : state.activePlay,
+    responses:
+      state.phase === "compare"
+        ? Object.fromEntries(
+            Object.entries(state.responses).map(([id, card]) =>
+              id === forPlayerId ? [id, card] : [id, { hidden: true }]
+            )
+          )
+        : state.responses,
     potCount: state.pot.length,
     lastResult: state.lastResult,
     winnerId: state.winnerId,
