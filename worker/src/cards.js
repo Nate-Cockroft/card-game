@@ -7,8 +7,12 @@ export const STAT_LABELS = {
   defense: "Defense",
 };
 
-export const HAND_SIZE = 7;
-export const MAX_PLAYERS = 6;
+export const DEFAULT_HAND_SIZE = 7;
+export const MIN_HAND_SIZE = 5;
+export const MAX_HAND_SIZE = 9;
+export const DEFAULT_MAX_PLAYERS = 6;
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 8;
 
 // 52 creature cards with 4 stats each.
 const CARD_TEMPLATES = [
@@ -65,6 +69,33 @@ const CARD_TEMPLATES = [
   ["Frost Hare", "🐇"],
   ["Copper Seraph", "😇"],
   ["Ancient Tree", "🌳"],
+  ["Crystal Jellyfish", "🪼"],
+  ["Scarlet Macaw", "🦜"],
+  ["Iron Pufferfish", "🐡"],
+  ["Goblin Shaman", "🧌"],
+  ["Bone Paladin", "🦴"],
+  ["Astral Seraph", "👼"],
+  ["Primal Tiger", "🐯"],
+  ["Glacier Penguin", "🐧"],
+  ["Steppe Buffalo", "🦬"],
+  ["Coral Polyps", "🪸"],
+  ["Thorn Porcupine", "🦔"],
+  ["Onyx Panther", "🐈‍⬛"],
+  ["Mist Otter", "🦦"],
+  ["Ruby Hummingbird", "🌺"],
+  ["Sand Dune Worm", "🪱"],
+  ["Cobalt Tarantula", "🕷️"],
+  ["Dune Gazelle", "🦌"],
+  ["Gilded Wasp", "🐝"],
+  ["Gilded Scarab", "🪲"],
+  ["Void Raven", "🐦‍⬛"],
+  ["Frost Mammoth", "🦣"],
+  ["Rift Hippo", "🦛"],
+  ["Tide Serpent", "🐍"],
+  ["Arcane Llama", "🦙"],
+  ["Midnight Swan", "🦢"],
+  ["Pale Leviathan", "🐳"],
+  ["Iron Bull", "🐂"],
 ];
 
 function mulberry32(seed) {

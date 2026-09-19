@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import {
   createGame,
   addPlayer,
+  addBot,
   startGame,
+  setSettings,
   playAsActive,
   playAsResponder,
   drawAsActive,
   resolveRound,
   activePlayerId,
+  isBot,
   publicView,
 } from "../src/game.js";
 
@@ -25,8 +28,62 @@ test("starts with 7 cards each and a deck", () => {
   const g = twoPlayerGame();
   assert.equal(g.hands.a.length, 7);
   assert.equal(g.hands.b.length, 7);
-  assert.equal(g.deck.length, 52 - 14);
+  assert.equal(g.deck.length, 80 - 14);
   assert.equal(g.phase, "playing");
+});
+
+test("hand size and max players are configurable by the host", () => {
+  const g = createGame("TEST");
+  addPlayer(g, "a", "Alice");
+  const res = setSettings(g, "a", { handSize: 5, maxPlayers: 8 });
+  assert.equal(res.ok, true);
+  assert.equal(g.handSize, 5);
+  assert.equal(g.maxPlayers, 8);
+  // non-host can't change
+  addPlayer(g, "b", "Bob");
+  const res2 = setSettings(g, "b", { handSize: 9 });
+  assert.equal(res2.ok, false);
+  // out of range rejected
+  const res3 = setSettings(g, "a", { handSize: 3 });
+  assert.equal(res3.ok, false);
+});
+
+test("bots take a player slot and can be added", () => {
+  const g = createGame("TEST");
+  addPlayer(g, "a", "Alice");
+  const res = setSettings(g, "a", { maxPlayers: 3 });
+  assert.equal(res.ok, true);
+  const b1 = addBot(g, "a");
+  assert.equal(b1.ok, true);
+  assert.equal(isBot(g, b1.id), true);
+  const b2 = addBot(g, "a");
+  assert.equal(b2.ok, true);
+  const b3 = addBot(g, "a");
+  assert.equal(b3.ok, false); // full at 3 now
+  const join = addPlayer(g, "b", "Bob");
+  assert.equal(join.ok, false); // bots occupied all slots
+});
+
+test("game with a bot plays and the bot keeps playing its turn", () => {
+  const g = createGame("TEST");
+  addPlayer(g, "a", "Alice");
+  const res = addBot(g, "a");
+  assert.equal(res.ok, true);
+  startGame(g);
+  // Alice leads, bot responds
+  const leader = activePlayerId(g);
+  const bot = g.players.find((p) => p.bot);
+  if (leader === "a") {
+    playAsActive(g, "a", g.hands.a[0].id, "health");
+    playAsResponder(g, bot.id, g.hands[bot.id][0].id);
+  } else {
+    playAsActive(g, bot.id, g.hands[bot.id][0].id, "health");
+    playAsResponder(g, "a", g.hands.a[0].id);
+  }
+  // round resolved, a winner may or may not exist
+  assert.ok(["playing", "finished"].includes(g.phase));
+  const totalCards = g.hands.a.length + g.hands[bot.id].length + g.deck.length + g.pot.length;
+  assert.equal(totalCards, 80);
 });
 
 test("only the active player can play as leader", () => {
@@ -56,7 +113,7 @@ test("leader plays a card and chooses a stat, others respond, loser collects", (
   // the lowest player collected both cards into their hand
   assert.ok(g.hands[other].length > g.hands[leader].length);
   const totalCards = g.hands.a.length + g.hands.b.length + g.deck.length + g.pot.length;
-  assert.equal(totalCards, 52);
+  assert.equal(totalCards, 80);
 });
 
 test("drawing takes a deck card and advances the turn", () => {

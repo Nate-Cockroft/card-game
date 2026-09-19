@@ -1,12 +1,14 @@
 // Stat Clash client.
-// Points WORKER_URL at your deployed Cloudflare Worker (or use the local override).
+// Points WORKER_URL at your deployed Cloudflare Worker.
 const WORKER_URL = "https://cardsgame-worker.nathaniel-cockroft.workers.dev";
 const STAT_LABELS = { health: "Health", speed: "Speed", attack: "Attack", defense: "Defense" };
 
-let ws = null;
+let ws = null; // game socket
+let lobbyWs = null; // lobby-list socket
 let state = null;
 let myId = null;
 let selectedCard = null;
+let lobbies = [];
 
 const $ = (id) => document.getElementById(id);
 const screens = { lobby: $("lobby"), waiting: $("waiting"), game: $("game") };
@@ -17,21 +19,56 @@ function showScreen(name) {
   }
 }
 
-function wsUrl(code, create) {
-  const base = WORKER_URL;
-  const u = new URL(`${base}/ws`);
-  u.searchParams.set("code", code);
-  u.searchParams.set("name", $("name-input").value.trim() || "Player");
-  if (create) u.searchParams.set("create", "1");
-  return u.toString();
+/* ---------- lobby list ---------- */
+
+function connectLobby() {
+  lobbyWs = new WebSocket(`${WORKER_URL}/lobby`);
+  lobbyWs.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === "lobbies") {
+      lobbies = msg.lobbies;
+      renderLobbyList();
+    }
+  };
 }
 
-function connect(code, create) {
-  ws = new WebSocket(wsUrl(code, create));
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    handleMessage(msg);
-  };
+function renderLobbyList() {
+  const ul = $("lobby-list");
+  ul.innerHTML = "";
+  const open = lobbies.filter((l) => l.phase === "lobby");
+  $("lobby-empty").hidden = open.length > 0;
+  open.forEach((l) => {
+    const li = document.createElement("li");
+    const info = li.appendChild(document.createElement("div"));
+    info.className = "lobby-info";
+    const host = info.appendChild(document.createElement("b"));
+    host.textContent = `${l.host}'s lobby`;
+    const meta = info.appendChild(document.createElement("span"));
+    meta.textContent = `${l.humans}/${l.maxPlayers} players · ${l.handSize} cards`;
+    const join = li.appendChild(document.createElement("button"));
+    join.textContent = "Join";
+    join.disabled = !(l.count < l.maxPlayers);
+    join.onclick = () => connectGame(l.id, false);
+    ul.appendChild(li);
+  });
+}
+
+/* ---------- game socket ---------- */
+
+function generateId() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+function connectGame(roomId, create) {
+  const u = new URL(`${WORKER_URL}/ws`);
+  u.searchParams.set("room", roomId);
+  u.searchParams.set("name", $("name-input").value.trim() || "Player");
+  if (create) u.searchParams.set("create", "1");
+  ws = new WebSocket(u.toString());
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
   ws.onclose = () => {
     if (state && state.phase !== "finished") {
       setStatus("Disconnected from server. Reconnect to rejoin.");
@@ -83,24 +120,45 @@ function render() {
 }
 
 function renderWaiting() {
-  $("room-code").textContent = state.code;
+  const isHost = state.hostId === myId;
+  $("invite-url").textContent = location.href.split("?")[0];
+
+  const settings = $("settings");
+  settings.hidden = !isHost;
+  if (isHost) {
+    $("hand-size").value = state.handSize;
+    $("max-players").value = state.maxPlayers;
+    $("settings-note").textContent =
+      `Starting cards ${state.handSize} each (deck adjusts automatically). Bots take up a player slot.`;
+  }
+
   const roster = $("roster");
   roster.innerHTML = "";
   state.players.forEach((p) => {
     const li = document.createElement("li");
-    li.textContent = p.name;
+    li.textContent = (p.bot ? "🤖 " : "") + p.name;
     if (p.id === state.hostId) li.textContent += " (host)";
     roster.appendChild(li);
   });
+
   const startBtn = $("start-btn");
-  const isHost = state.hostId === myId;
   startBtn.disabled = !(isHost && state.players.length >= 2);
   startBtn.textContent = isHost ? "Start game" : "Waiting for host…";
-  $("start-btn").onclick = () => send({ type: "start" });
+  startBtn.onclick = () => send({ type: "start" });
+
+  $("add-bot-btn").onclick = () => send({ type: "addBot" });
+  $("apply-settings-btn").onclick = () => {
+    const v = {
+      handSize: Math.max(5, Math.min(9, parseInt($("hand-size").value, 10) || 7)),
+      maxPlayers: Math.max(2, Math.min(8, parseInt($("max-players").value, 10) || 6)),
+    };
+    send({ type: "settings", ...v });
+  };
+  $("waiting-error").hidden = true;
 }
 
 function renderGame() {
-  $("room-info").textContent = `Room ${state.code} · deck ${state.deckCount} · pot ${state.potCount}`;
+  $("room-info").textContent = `deck ${state.deckCount} · pot ${state.potCount}`;
   renderOpponents();
   renderTable();
   renderStatus();
@@ -117,7 +175,7 @@ function renderOpponents() {
     div.className = "opponent" + (p.id === activeId ? " active" : "") + (p.id === myId ? " me" : "");
     const name = div.appendChild(document.createElement("div"));
     name.className = "opp-name";
-    name.textContent = p.id === myId ? p.name + " (you)" : p.name;
+    name.textContent = (p.bot ? "🤖 " : "") + (p.id === myId ? p.name + " (you)" : p.name);
     const count = div.appendChild(document.createElement("div"));
     count.className = "opp-count";
     count.textContent = `${p.handCount} card${p.handCount === 1 ? "" : "s"}`;
@@ -212,22 +270,15 @@ function renderHand() {
   state.myHand.forEach((card) => {
     const el = cardEl(card);
     el.dataset.cardId = card.id;
-    if ((myTurn || mustRespond) && el.addEventListener) {
-      el.addEventListener("click", () => onCardClick(card.id));
-    }
+    if (myTurn || mustRespond) el.addEventListener("click", () => onCardClick(card.id));
     if (selectedCard === card.id) el.classList.add("selected");
     wrap.appendChild(el);
   });
 
-  if (myTurn || mustRespond) {
-    controls.hidden = false;
-  } else {
-    controls.hidden = true;
-  }
+  controls.hidden = !(myTurn || mustRespond);
+  controls.innerHTML = "";
 
-  // leader controls
   if (myTurn) {
-    controls.innerHTML = "";
     if (state.deckCount > 0) {
       const draw = controls.appendChild(document.createElement("button"));
       draw.textContent = `Draw from deck (${state.deckCount})`;
@@ -247,7 +298,6 @@ function renderHand() {
       };
     });
   } else if (mustRespond) {
-    controls.innerHTML = "";
     const btn = controls.appendChild(document.createElement("button"));
     btn.className = "primary";
     btn.textContent = "Play chosen card";
@@ -270,40 +320,25 @@ function showWinner() {
   $("winner-title").textContent = "🏆 " + name;
   $("winner-text").textContent = `${name} emptied their hand first and wins the game!`;
   $("winner-overlay").hidden = false;
-  $("new-game-btn").onclick = () => location.reload();
+  $("new-game-btn").onclick = () => location.href = location.pathname;
 }
 
-/* ---------- lobby wiring ---------- */
-
-function readCodeFromUrl() {
-  const params = new URLSearchParams(location.search);
-  if (params.get("room")) $("code-input").value = params.get("room").toUpperCase();
-}
+/* ---------- wiring ---------- */
 
 $("join-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const name = $("name-input").value.trim();
   if (!name) return;
-  const code = $("code-input").value.trim().toUpperCase();
-  const create = !code;
-  const roomCode = create ? generateCode() : code;
-  $("code-input").value = roomCode;
-  connect(roomCode, create);
+  connectGame(generateId(), true);
 });
 
-function generateCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 5; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return out;
-}
-
 $("copy-btn").addEventListener("click", () => {
-  const url = `${location.origin}${location.pathname}?room=${state.code}`;
+  const url = location.href.split("?")[0];
   navigator.clipboard.writeText(url).then(() => {
     $("copy-btn").textContent = "Copied!";
-    setTimeout(() => ($("copy-btn").textContent = "Copy invite link"), 1500);
+    setTimeout(() => ($("copy-btn").textContent = "Copy link"), 1500);
   });
 });
 
-readCodeFromUrl();
+connectLobby();
+renderLobbyList();

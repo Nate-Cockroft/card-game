@@ -2,10 +2,21 @@ name = "cardsgame-worker"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 
+[observability]
+enabled = true
+
 [[durable_objects.bindings]]
 name = "ROOMS"
 class_name = "Room"
 
+[[durable_objects.bindings]]
+name = "LOBBY"
+class_name = "Lobby"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Lobby"]

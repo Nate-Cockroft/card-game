@@ -1,11 +1,23 @@
-import { createDeck, shuffle, HAND_SIZE, MAX_PLAYERS, isStat } from "./cards.js";
+import {
+  createDeck,
+  shuffle,
+  DEFAULT_HAND_SIZE,
+  DEFAULT_MAX_PLAYERS,
+  MIN_HAND_SIZE,
+  MAX_HAND_SIZE,
+  MIN_PLAYERS,
+  MAX_PLAYERS,
+  isStat,
+} from "./cards.js";
 
 export function createGame(code) {
   return {
     code,
     phase: "lobby", // lobby | playing | compare | finished
     hostId: null,
-    players: [], // [{id, name}]
+    handSize: DEFAULT_HAND_SIZE,
+    maxPlayers: DEFAULT_MAX_PLAYERS,
+    players: [], // [{id, name, bot}]
     order: [], // fixed seat order of player ids
     turnIndex: 0,
     hands: {}, // id -> [card, ...]
@@ -18,9 +30,48 @@ export function createGame(code) {
   };
 }
 
+const botNamePool = ["Bot-α", "Bot-β", "Bot-γ", "Bot-δ", "Bot-ε", "Bot-ζ", "Bot-η", "Bot-θ"];
+
 function log(state, msg) {
   state.log.push(msg);
   if (state.log.length > 40) state.log.splice(0, state.log.length - 40);
+}
+
+export function setSettings(state, hostId, { handSize, maxPlayers }) {
+  if (state.phase !== "lobby") return { ok: false, error: "Settings can only change before the game starts." };
+  if (state.hostId !== hostId) return { ok: false, error: "Only the host can change settings." };
+  if (handSize !== undefined) {
+    if (!Number.isInteger(handSize) || handSize < MIN_HAND_SIZE || handSize > MAX_HAND_SIZE) {
+      return { ok: false, error: `Hand size must be ${MIN_HAND_SIZE}-${MAX_HAND_SIZE} cards.` };
+    }
+    state.handSize = handSize;
+  }
+  if (maxPlayers !== undefined) {
+    if (!Number.isInteger(maxPlayers) || maxPlayers < MIN_PLAYERS || maxPlayers > MAX_PLAYERS) {
+      return { ok: false, error: `Max players must be ${MIN_PLAYERS}-${MAX_PLAYERS}.` };
+    }
+    if (state.players.length > maxPlayers) {
+      return { ok: false, error: "Some players would be pushed out." };
+    }
+    state.maxPlayers = maxPlayers;
+  }
+  log(state, `Settings: ${state.handSize} starting cards, ${state.maxPlayers} max players.`);
+  return { ok: true };
+}
+
+export function addBot(state, hostId) {
+  if (state.phase !== "lobby") return { ok: false, error: "Bots can only be added before the game starts." };
+  if (state.hostId !== hostId) return { ok: false, error: "Only the host can add bots." };
+  if (state.players.length >= state.maxPlayers) {
+    return { ok: false, error: "Lobby is at max capacity." };
+  }
+  const n = state.players.filter((p) => p.bot).length;
+  const id = "bot" + (Math.floor(Math.random() * 1e6)).toString(36);
+  state.players.push({ id, name: botNamePool[n % botNamePool.length], bot: true });
+  state.order.push(id);
+  state.hands[id] = [];
+  log(state, `${botNamePool[n % botNamePool.length]} joined as a bot.`);
+  return { ok: true, id };
 }
 
 export function playerById(state, id) {
@@ -32,15 +83,20 @@ export function activePlayerId(state) {
   return state.order[state.turnIndex % state.order.length];
 }
 
+export function isBot(state, id) {
+  const p = playerById(state, id);
+  return p ? !!p.bot : false;
+}
+
 export function addPlayer(state, id, name) {
   if (state.phase !== "lobby") return { ok: false, error: "Game already started." };
-  if (state.players.length >= MAX_PLAYERS) return { ok: false, error: "Room is full." };
+  if (state.players.length >= state.maxPlayers) return { ok: false, error: "Room is full." };
   if (state.players.some((p) => p.id === id)) return { ok: false, error: "Already joined." };
-  state.players.push({ id, name });
+  state.players.push({ id, name, bot: false });
   state.order.push(id);
   state.hands[id] = [];
   if (!state.hostId) state.hostId = id;
-  log(state, `${name} joined. (${state.players.length}/${MAX_PLAYERS})`);
+  log(state, `${name} joined. (${state.players.length}/${state.maxPlayers})`);
   return { ok: true };
 }
 
@@ -53,7 +109,7 @@ export function removePlayer(state, id) {
   delete state.hands[id];
   delete state.responses[id];
   if (!state.players.length) return;
-  if (state.hostId === id) state.hostId = state.players[0].id;
+  if (state.hostId === id) state.hostId = state.players.find((p) => !p.bot)?.id ?? state.players[0].id;
   if (wasActive && state.phase !== "lobby") state.phase = "playing";
   // walk turn to a sensible spot
   state.turnIndex = Math.min(state.turnIndex, state.order.length - 1);
@@ -62,15 +118,18 @@ export function removePlayer(state, id) {
 
 export function startGame(state) {
   if (state.phase !== "lobby") return { ok: false, error: "Game already started." };
-  if (state.players.length < 2) return { ok: false, error: "Need at least 2 players." };
+  if (state.players.length < 2) return { ok: false, error: "Need at least 2 players in the lobby." };
+  const n = state.players.length;
   const cards = shuffle(createDeck());
-  state.deck = cards.slice(HAND_SIZE * state.players.length);
+  const need = n * state.handSize;
+  if (cards.length < need) return { ok: false, error: `Deck too small for ${n} players at ${state.handSize} cards.` };
+  state.deck = cards.slice(need);
   state.players.forEach((p, i) => {
-    state.hands[p.id] = cards.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE);
+    state.hands[p.id] = cards.slice(i * state.handSize, (i + 1) * state.handSize);
   });
   state.phase = "playing";
   state.turnIndex = 0;
-  log(state, "Game started! Everyone got 7 cards.");
+  log(state, "Game started! Everyone got " + state.handSize + " cards.");
   log(state, `${nameOf(state, activePlayerId(state))} will lead the first round.`);
   return { ok: true };
 }
@@ -184,9 +243,12 @@ export function publicView(state, forPlayerId) {
     code: state.code,
     phase: state.phase,
     hostId: state.hostId,
+    handSize: state.handSize,
+    maxPlayers: state.maxPlayers,
     players: state.players.map((p) => ({
       id: p.id,
       name: p.name,
+      bot: p.bot,
       handCount: state.hands[p.id] ? state.hands[p.id].length : 0,
     })),
     order: state.order,

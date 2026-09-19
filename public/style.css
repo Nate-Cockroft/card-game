@@ -371,10 +371,122 @@ button.primary {
   font-weight: 600;
 }
 
+.lobby-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 24px;
+  margin-top: 20px;
+  align-items: start;
+}
+
+.lobby-list-panel,
+.lobby-create-panel {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.lobby-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lobby-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--panel-2);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.lobby-list .lobby-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.lobby-list .lobby-info b {
+  color: var(--text);
+}
+
+.lobby-list .lobby-info span {
+  color: var(--muted);
+}
+
+.lobby-create-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.invite-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 8px 0 16px;
+}
+
+.invite-row code {
+  background: var(--panel);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.setting-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.setting-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.setting-row input {
+  width: 70px;
+}
+
+#settings-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
 @media (max-width: 640px) {
+  .lobby-layout {
+    grid-template-columns: 1fr;
+  }
   .card {
     width: 104px;
   }
+}
   header h1 {
     font-size: 22px;
   }

@@ -1,15 +1,30 @@
 const WS_ORIGIN = "http://127.0.0.1:8787";
+const DECK_SIZE = 80;
 
-function connect(code, name, create) {
+function connect(room, name, create) {
   const u = new URL(`${WS_ORIGIN}/ws`);
-  u.searchParams.set("code", code);
+  u.searchParams.set("room", room);
   u.searchParams.set("name", name);
   if (create) u.searchParams.set("create", "1");
   const ws = new WebSocket(u);
   const states = [];
   ws.addEventListener("message", (e) => states.push(JSON.parse(e.data)));
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("websocket connect timeout")), 3000);
+    ws.onopen = () => {
+      clearTimeout(t);
+      resolve({ ws, states });
+    };
+    ws.onerror = () => reject(new Error("websocket connect failed: " + ws.url));
+  });
+}
+
+function connectLobby() {
+  const ws = new WebSocket(`${WS_ORIGIN}/lobby`);
+  const msgs = [];
+  ws.addEventListener("message", (e) => msgs.push(JSON.parse(e.data)));
   return new Promise((resolve) => {
-    ws.onopen = () => resolve({ ws, states });
+    ws.onopen = () => resolve({ ws, msgs });
   });
 }
 
@@ -27,13 +42,33 @@ function waitForState(c, pred) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const code = "AWSQ2";
+  const L = await connectLobby();
+  const code = "R" + Math.random().toString(36).slice(2, 7).toUpperCase();
   const A = await connect(code, "Alice", true);
   const B = await connect(code, "Bob", false);
 
   // lobby with 2 players
   await waitForState(A, (s) => s.phase === "lobby" && s.players.length === 2);
   console.log("[1] LOBBY OK");
+
+  // the room should appear in the lobby list (no codes shown to players)
+  await sleep(200);
+  const latestLobbies = () => L.msgs.filter((m) => m.type === "lobbies").at(-1) ?? null;
+  const lob = latestLobbies();
+  if (!lob || !lob.lobbies.find((r) => r.id === code)) {
+    throw new Error("room not listed in lobby directory");
+  }
+  console.log("[1b] LOBBY DIRECTORY OK:", lob.lobbies.map((r) => `${r.id}(${r.humans})`).join(", "));
+
+  // host changes settings + adds a bot
+  A.ws.send(JSON.stringify({ type: "settings", handSize: 9, maxPlayers: 6 }));
+  A.ws.send(JSON.stringify({ type: "addBot" }));
+  await waitForState(A, (s) => s.phase === "lobby" && s.players.length === 3 && s.handSize === 9);
+  console.log("[1c] SETTINGS + BOT OK (players: 3)");
+  await sleep(200);
+  const lob2 = latestLobbies();
+  const listed = lob2?.lobbies?.find((r) => r.id === code);
+  if (!listed || listed.count !== 3) throw new Error("lobby list did not update after bot join");
 
   A.ws.send(JSON.stringify({ type: "start" }));
   await waitForState(A, (s) => s.phase === "playing");
@@ -47,8 +82,8 @@ async function main() {
   console.log("[3] ROUND PLAYED. pots:", stateA.potCount, "decks:", stateA.deckCount, "phase:", stateA.phase);
   console.log("    hands after: Alice", stateA.myHand.length, "/ Bob", stateB.myHand.length);
 
-  const total = stateA.myHand.length + stateB.myHand.length + stateA.deckCount + stateA.potCount;
-  if (total !== 52) throw new Error(`card conservation broken: ${total}`);
+  const total = stateA.players.reduce((n, p) => n + p.handCount, 0) + stateA.deckCount + stateA.potCount;
+  if (total !== DECK_SIZE) throw new Error(`card conservation broken: ${total}`);
 
   // lead a round
   const leaderWs = stateA.activePlayerId === stateA.myId ? A.ws : B.ws;
@@ -64,9 +99,9 @@ async function main() {
   const sA = A.states.filter((m) => m.type === "state").at(-1).state;
   const sB = B.states.filter((m) => m.type === "state").at(-1).state;
   console.log("[4] COMPARE RESOLVED. phase:", sA.phase, "winner:", sA.winnerId || "none", "turn:", name(sA, sA.activePlayerId));
-  const total2 = sA.myHand.length + sB.myHand.length + sA.deckCount + sA.potCount;
-  if (total2 !== 52) throw new Error(`card conservation broken: ${total2}`);
-  console.log("[5] CARD CONSERVATION OK (52)");
+  const total2 = sA.players.reduce((n, p) => n + p.handCount, 0) + sA.deckCount + sA.potCount;
+  if (total2 !== DECK_SIZE) throw new Error(`card conservation broken: ${total2}`);
+  console.log("[5] CARD CONSERVATION OK (80)");
 
   // draw test: active player draws
   const dWs = sA.activePlayerId === sA.myId ? A.ws : B.ws;

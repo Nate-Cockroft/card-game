@@ -18,26 +18,46 @@
       <section id="lobby" class="screen">
         <h2>Play Stat Clash online</h2>
         <p class="sub">Every card has 4 stats. Lead with a card &amp; a stat — everyone answers. The lowest stat loses and collects the pile. First to empty their hand wins.</p>
-        <div class="lobby-box">
-          <form id="join-form">
-            <label>Your name
-              <input id="name-input" type="text" maxlength="16" placeholder="Player 1" required />
-            </label>
-            <label>Room code (if joining)
-              <input id="code-input" type="text" maxlength="8" placeholder="ABC12 or leave blank" autocomplete="off" />
-            </label>
-            <button type="submit" id="join-btn" class="primary">Create / Join</button>
-            <p id="lobby-error" class="error" hidden></p>
-          </form>
+        <div class="lobby-layout">
+          <div class="lobby-list-panel">
+            <h3>Open lobbies</h3>
+            <ul id="lobby-list" class="lobby-list"></ul>
+            <p id="lobby-empty" class="muted">No lobbies open yet. Create one!</p>
+          </div>
+          <div class="lobby-create-panel">
+            <form id="join-form">
+              <label>Your name
+                <input id="name-input" type="text" maxlength="16" placeholder="Player 1" required />
+              </label>
+              <button type="submit" id="create-btn" class="primary">Create lobby</button>
+              <p id="lobby-error" class="error" hidden></p>
+            </form>
+          </div>
         </div>
       </section>
 
       <!-- Waiting room -->
       <section id="waiting" class="screen" hidden>
         <h2>Waiting room</h2>
-        <p>Share the room code with friends:</p>
-        <div class="code-display" id="room-code"></div>
-        <button id="copy-btn">Copy invite link</button>
+        <p class="muted">Invite friends:</p>
+        <div class="invite-row">
+          <code id="invite-url"></code>
+          <button id="copy-btn">Copy link</button>
+        </div>
+        <div id="settings" class="settings" hidden>
+          <h3>Host settings</h3>
+          <div class="setting-row">
+            <label>Starting cards
+              <input id="hand-size" type="number" min="5" max="9" value="7" />
+            </label>
+            <label>Max players
+              <input id="max-players" type="number" min="2" max="8" value="6" />
+            </label>
+            <button id="add-bot-btn">Add bot</button>
+            <button id="apply-settings-btn" class="primary">Apply</button>
+          </div>
+          <p class="muted" id="settings-note"></p>
+        </div>
         <ul id="roster" class="roster"></ul>
         <button id="start-btn" class="primary" disabled>Start game</button>
         <p id="waiting-error" class="error" hidden></p>
@@ -58,7 +78,7 @@
         <div class="card">
           <h2 class="winner-title"></h2>
           <p id="winner-text"></p>
-          <button id="new-game-btn" class="primary">New game</button>
+          <button id="new-game-btn" class="primary">Back to lobby</button>
         </div>
       </div>
     </div>

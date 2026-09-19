@@ -1,13 +1,19 @@
 import {
   createGame,
   addPlayer,
+  addBot,
   removePlayer,
   startGame,
+  setSettings,
   playAsActive,
   playAsResponder,
   drawAsActive,
+  isBot,
+  activePlayerId,
+  playerById,
   publicView,
 } from "./game.js";
+import { randomCode } from "./cards.js";
 
 const ROOM_TTL = 1000 * 60 * 60 * 4; // rooms auto-expire after 4h idle
 
@@ -17,8 +23,8 @@ export class Room {
     this.env = env;
     this.connections = new Map(); // playerId -> WebSocket
     this.game = null;
-    // if there was a persisted game, load it
-    this.tryLoad();
+    // load any persisted game before serving requests
+    this.ready = this.tryLoad();
   }
 
   async tryLoad() {
@@ -31,18 +37,28 @@ export class Room {
     await this.state.storage.put("lastSeen", Date.now());
   }
 
+  roomId() {
+    return this.state.id.toString();
+  }
+
   async fetch(request) {
+    await this.ready;
     const url = new URL(request.url);
     const upgrade = request.headers.get("Upgrade");
 
     if (url.pathname === "/ws" && upgrade === "websocket") {
       const name = (url.searchParams.get("name") || "Player").slice(0, 16);
       const wantCreate = url.searchParams.get("create") === "1";
+      const friendly = url.searchParams.get("room") || this.roomId();
 
       if (!this.game) {
-        if (!wantCreate) return new Response("Room not found", { status: 404 });
-        this.game = createGame(url.searchParams.get("code") || "");
+        if (!wantCreate) {
+          await this.syncLobby("close"); // prune stale directory entries
+          return new Response("Room not found", { status: 404 });
+        }
+        this.game = createGame(friendly.slice(0, 12));
         await this.persist();
+        await this.syncLobby("open");
       } else if (wantCreate && this.game.phase === "lobby") {
         // creating into an existing empty lobby is fine (picked the same code)
       } else if (wantCreate) {
@@ -52,7 +68,12 @@ export class Room {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
       server.accept();
-      this.handleSession(server, name);
+      this.handleSession(server, name).catch((e) => {
+        console.error("SESSION ERROR", e && e.stack ? e.stack : e);
+        try {
+          server.close(1011, "internal error");
+        } catch {}
+      });
       return new Response(null, { status: 101, webSocket: client });
     }
 
@@ -69,6 +90,8 @@ export class Room {
       return;
     }
     this.connections.set(id, server);
+    await this.persist();
+    await this.syncLobby("open");
     this.broadcast();
 
     server.addEventListener("message", (event) => this.handleMessage(id, event.data));
@@ -76,7 +99,7 @@ export class Room {
     server.addEventListener("error", () => this.handleClose(id));
   }
 
-  handleMessage(playerId, raw) {
+  async handleMessage(playerId, raw) {
     let msg;
     try {
       msg = JSON.parse(raw);
@@ -98,6 +121,33 @@ export class Room {
             return;
           }
         }
+        await this.syncLobby("open");
+        break;
+
+      case "settings":
+        if (this.game.hostId !== playerId) {
+          this.sendTo(playerId, { type: "error", message: "Only the host can change settings." });
+          return;
+        }
+        {
+          const res = setSettings(this.game, playerId, msg);
+          if (!res.ok) {
+            this.sendTo(playerId, { type: "error", message: res.error });
+            return;
+          }
+        }
+        await this.syncLobby("open");
+        break;
+
+      case "addBot":
+        {
+          const res = addBot(this.game, playerId);
+          if (!res.ok) {
+            this.sendTo(playerId, { type: "error", message: res.error });
+            return;
+          }
+        }
+        await this.syncLobby("open");
         break;
 
       case "play":
@@ -131,6 +181,7 @@ export class Room {
     }
     this.persist();
     this.broadcast();
+    this.autoPlayBots();
   }
 
   async handleClose(playerId) {
@@ -138,24 +189,95 @@ export class Room {
     const wasPresent = this.game.players.some((p) => p.id === playerId);
     if (wasPresent) {
       removePlayer(this.game, playerId);
-      if (this.game.phase === "compare") {
-        // someone vanished mid-round: if everyone left has responded, resolve
-        const leader = this.game.order[this.game.turnIndex % this.game.order.length];
-        if (this.game.players.length <= 1) {
-          this.game.phase = "finished";
-          this.game.winnerId = this.game.players[0]?.id ?? null;
-        }
-      }
     }
     this.connections.delete(playerId);
+    // Evict humans whose sockets are gone (keeps players with live sockets, and all bots).
+    for (const p of [...this.game.players]) {
+      if (!p.bot && !this.connections.has(p.id)) removePlayer(this.game, p.id);
+    }
+    if (this.game.players.length <= 1 && this.game.phase !== "lobby") {
+      this.game.phase = "finished";
+      this.game.winnerId = this.game.players[0]?.id ?? null;
+    }
     if (this.game.players.length === 0) {
       // no one left; wipe room data
       this.game = null;
       await this.state.storage.delete("game");
+      await this.syncLobby("close");
       return;
     }
     await this.persist();
+    await this.syncLobby("open");
     this.broadcast();
+    this.autoPlayBots();
+  }
+
+  // If it's a bot's turn (or bots are waiting to respond), make their moves.
+  autoPlayBots() {
+    const g = this.game;
+    if (!g || g.phase === "lobby" || g.phase === "finished") return;
+
+    if (g.phase === "playing") {
+      const active = activePlayerId(g);
+      if (active && isBot(g, active)) {
+        const hand = g.hands[active];
+        if (hand.length) {
+          const card = hand[Math.floor(Math.random() * hand.length)];
+          const stat = ["health", "speed", "attack", "defense"][Math.floor(Math.random() * 4)];
+          const res = playAsActive(g, active, card.id, stat);
+          if (res.ok) {
+            this.persist();
+            this.broadcast();
+            this.autoPlayBots();
+          }
+        }
+      }
+      return;
+    }
+
+    if (g.phase === "compare") {
+      // every bot that hasn't responded yet plays
+      const pendingBots = g.players.filter((p) => p.bot && !g.responses[p.id]);
+      const bot = pendingBots[0];
+      if (bot && g.hands[bot.id]?.length) {
+        const card = g.hands[bot.id][Math.floor(Math.random() * g.hands[bot.id].length)];
+        const res = playAsResponder(g, bot.id, card.id);
+        if (res.ok) {
+          this.persist();
+          this.broadcast();
+          this.autoPlayBots();
+        }
+      }
+    }
+  }
+
+  async syncLobby(action) {
+    try {
+      const stub = this.env.LOBBY.get(this.env.LOBBY.idFromName("global"));
+      const res = await stub.fetch("https://lobby.internal/update", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, room: this.lobbyInfo() }),
+      });
+      if (!res.ok) console.error("LOBBY SYNC FAIL", res.status);
+    } catch (e) {
+      console.error("LOBBY SYNC ERROR", e && e.message);
+    }
+  }
+
+  lobbyInfo() {
+    const g = this.game;
+    if (!g) return null;
+    return {
+      id: g.code,
+      host: g.hostId ? playerById(g, g.hostId)?.name : null,
+      count: g.players.length,
+      humans: g.players.filter((p) => !p.bot).length,
+      maxPlayers: g.maxPlayers,
+      handSize: g.handSize,
+      phase: g.phase,
+      code: g.code,
+    };
   }
 
   broadcast() {
@@ -175,3 +297,5 @@ export class Room {
     return "p" + Math.random().toString(36).slice(2, 10);
   }
 }
+
+export { randomCode };
