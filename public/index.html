@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stat Clash — Top Trumps &times; Uno</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Stat Clash</h1>
+        <div id="room-info"></div>
+      </header>
+
+      <!-- Lobby -->
+      <section id="lobby" class="screen">
+        <h2>Play Stat Clash online</h2>
+        <p class="sub">Every card has 4 stats. Lead with a card &amp; a stat — everyone answers. The lowest stat loses and collects the pile. First to empty their hand wins.</p>
+        <div class="lobby-box">
+          <form id="join-form">
+            <label>Your name
+              <input id="name-input" type="text" maxlength="16" placeholder="Player 1" required />
+            </label>
+            <label>Room code (if joining)
+              <input id="code-input" type="text" maxlength="8" placeholder="ABC12 or leave blank" autocomplete="off" />
+            </label>
+            <button type="submit" id="join-btn" class="primary">Create / Join</button>
+            <p id="lobby-error" class="error" hidden></p>
+          </form>
+        </div>
+      </section>
+
+      <!-- Waiting room -->
+      <section id="waiting" class="screen" hidden>
+        <h2>Waiting room</h2>
+        <p>Share the room code with friends:</p>
+        <div class="code-display" id="room-code"></div>
+        <button id="copy-btn">Copy invite link</button>
+        <ul id="roster" class="roster"></ul>
+        <button id="start-btn" class="primary" disabled>Start game</button>
+        <p id="waiting-error" class="error" hidden></p>
+      </section>
+
+      <!-- Game -->
+      <section id="game" class="screen" hidden>
+        <div id="opponents" class="opponents"></div>
+        <div id="table" class="table"></div>
+        <div id="status" class="status"></div>
+        <div id="log" class="log"></div>
+        <div id="hand" class="hand"></div>
+        <div id="controls" class="controls" hidden></div>
+      </section>
+
+      <!-- Win overlay -->
+      <div id="winner-overlay" hidden>
+        <div class="card">
+          <h2 class="winner-title"></h2>
+          <p id="winner-text"></p>
+          <button id="new-game-btn" class="primary">New game</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
