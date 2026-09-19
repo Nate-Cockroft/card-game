@@ -64,6 +64,7 @@ const CARD_TEMPLATES = [
   ["Basalt Wyrm", "🪨"],
   ["Frost Hare", "🐇"],
   ["Copper Seraph", "😇"],
+  ["Ancient Tree", "🌳"],
 ];
 
 function mulberry32(seed) {
