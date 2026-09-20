@@ -166,20 +166,18 @@ function renderWaiting() {
 }
 
 function renderGame(prev) {
-  $("room-info").textContent = `deck ${state.deckCount} · pot ${state.potCount}`;
+  $("room-info").textContent = `♾️ magical deck — you can pull any card · ${state.deckCount} card types`;
   renderOpponents();
 
   const resolving = !!(state.lastResult && prev && prev.phase === "compare" && state.phase !== "compare");
   if (resolving) {
     const result = state.lastResult;
     collecting = true;
-    $("pot-target").hidden = false;
     showResultBanner(result);
     const cards = showReveal(result.played || [], result.stat);
     setTimeout(() => {
-      animateCardsTo(cards, result, () => {
+      animateCardsTo(cards, () => {
         collecting = false;
-        $("pot-target").hidden = true;
         renderTable();
         if (result.loserId === myId) renderHand();
         if (state.phase === "finished") showWinner();
@@ -218,10 +216,9 @@ function flyCard(el, fromEl, opts = {}) {
   el.classList.add("fly", opts.cls || "fly-card");
 }
 
-// Fly the just-played cards toward the pot (every played card is potted now).
-function animateCardsTo(cards, result, done) {
-  const targetEl = $("pot-target");
-  const target = targetEl && targetEl.isConnected ? targetEl : $("table");
+// Fly the just-played cards to the center of the table, where they vanish.
+function animateCardsTo(cards, done) {
+  const target = $("table");
   const t = target.getBoundingClientRect();
   let remaining = cards.length;
   if (!remaining) {
@@ -253,8 +250,8 @@ function showResultBanner(result) {
   b.hidden = false;
   b.textContent =
     result.loserId === null
-      ? `Tie! ${result.count} card${result.count === 1 ? "" : "s"} go to the pot.`
-      : `${nameOf(result.loserId)} had the lowest ${STAT_LABELS[result.stat] || "stat"}! They draw ${result.count} random card${result.count === 1 ? "" : "s"}.`;
+      ? "Tie — no one loses!"
+      : `${nameOf(result.loserId)} had the lowest ${STAT_LABELS[result.stat] || "stat"}! They pull ${result.count} card${result.count === 1 ? "" : "s"} from the deck.`;
   b.classList.remove("fade");
   void b.offsetWidth;
   b.classList.add("show");

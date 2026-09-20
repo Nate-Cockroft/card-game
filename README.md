@@ -2,7 +2,7 @@
 
 A multiplayer online card game — **Top Trumps mixed with Uno**.
 
-Each card has 4 stats: **Health, Speed, Attack, Defense**. Everyone starts with 7 cards (host can choose 5–9). On your turn you place one card and pick a stat, then every other player places a card. The player with the **lowest** value on the chosen stat *loses* and collects **all** cards in play. You can also draw a card from the deck instead of playing. First player to empty their hand wins.
+Each card has 4 stats: **Health, Speed, Attack, Defense**. Everyone starts with 7 cards (host can choose 5–9). On your turn you place one card and pick a stat, then every other player places a card face-down. The player with the **lowest** value on the chosen stat *loses* and pulls **2 random cards** out of the magical deck — played cards just vanish. You can also pull a card from the deck instead of playing. First player to empty their hand wins. The deck is infinite: you can always pull any card out of it.
 
 Lobbies are listed in the app — no room codes to type. The host can add bots (that pick random cards/stats), cap players at 2–8, and start whenever the lobby has at least 2 (humans + bots).
 
@@ -15,7 +15,7 @@ Lobbies are listed in the app — no room codes to type. The host can add bots (
 public/              static client (GitHub Pages)
 worker/              Cloudflare Worker + Durable Object rooms
   src/game.js        pure game rules (unit-tested)
-  src/cards.js       80-card deck, stat generation, limits
+  src/cards.js       absurd-card deck, stat generation, limits
   src/room.js        websocket room Durable Object (host, bots, settings)
   src/lobby.js       lobby directory Durable Object (room list)
   test/              node:test suite

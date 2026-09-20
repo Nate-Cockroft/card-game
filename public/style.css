@@ -422,28 +422,6 @@ button.primary {
   display: none;
 }
 
-#pot-target {
-  position: fixed;
-  left: 50%;
-  top: 120px;
-  transform: translateX(-50%);
-  width: 84px;
-  height: 54px;
-  background: radial-gradient(circle at 50% 30%, #ffe08a, #c9971c);
-  color: #221a00;
-  font-weight: 800;
-  font-size: 13px;
-  text-align: center;
-  line-height: 54px;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
-  z-index: 40;
-}
-
-#pot-target[hidden] {
-  display: none;
-}
-
 .status {
   text-align: center;
   min-height: 28px;

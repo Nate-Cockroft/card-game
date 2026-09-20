@@ -1,6 +1,5 @@
 import {
   createDeck,
-  shuffle,
   DEFAULT_HAND_SIZE,
   DEFAULT_MAX_PLAYERS,
   MIN_HAND_SIZE,
@@ -21,10 +20,8 @@ export function createGame(code) {
     order: [], // fixed seat order of player ids
     turnIndex: 0,
     hands: {}, // id -> [card, ...]
-    deck: [], // remaining cards
     activePlay: null, // {card, stat} from the active player
     responses: {}, // playerId -> card chosen during compare
-    pot: [], // accumulated cards from tied rounds
     lastResult: null, // {loserId|null, count} from the most recent resolved round
     winnerId: null,
     log: [],
@@ -117,27 +114,19 @@ export function removePlayer(state, id) {
   log(state, `${player.name} left the game.`);
 }
 
-export function drawFromDeck(state) {
-  // The deck is "infinite": when it runs out, the pot is recycled into it
-  // (never adds new cards, so total card count is preserved).
-  if (!state.deck.length) {
-    if (state.pot.length) {
-      state.deck = shuffle(state.pot);
-      state.pot = [];
-    } else {
-      state.deck = shuffle(createDeck());
-    }
-  }
-  return state.deck.pop();
+const POOL_SIZE = createDeck().length;
+
+// The "deck" is a magical infinite thing: you can pull any card out of it.
+export function drawFromDeck() {
+  const pool = createDeck();
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export function startGame(state) {
   if (state.phase !== "lobby") return { ok: false, error: "Game already started." };
   if (state.players.length < 2) return { ok: false, error: "Need at least 2 players in the lobby." };
-  const n = state.players.length;
-  state.deck = shuffle(createDeck());
   state.players.forEach((p) => {
-    state.hands[p.id] = Array.from({ length: state.handSize }, () => drawFromDeck(state));
+    state.hands[p.id] = Array.from({ length: state.handSize }, () => drawFromDeck());
   });
   state.phase = "playing";
   state.turnIndex = 0;
@@ -154,9 +143,9 @@ export function nameOf(state, id) {
 export function drawAsActive(state, id) {
   if (state.phase !== "playing") return { ok: false, error: "Not your play window." };
   if (activePlayerId(state) !== id) return { ok: false, error: "Not your turn." };
-  const card = drawFromDeck(state);
+  const card = drawFromDeck();
   state.hands[id].push(card);
-  log(state, `${nameOf(state, id)} drew ${card.emoji} ${card.name} from the deck.`);
+  log(state, `${nameOf(state, id)} pulled a card out of the magical deck.`);
   advanceTurn(state);
   return { ok: true, drew: card };
 }
@@ -204,21 +193,20 @@ export function resolveRound(state) {
   const min = Math.min(...values);
   const tied = owners.filter((id, i) => cards[i][stat] === min);
 
-  // every played card goes to the pot; the loser instead draws 2 random cards
-  state.pot.push(...cards);
+  // played cards simply vanish; the loser pulls 2 fresh cards from the deck
   state.lastResult = { played: cards, stat };
 
   if (tied.length > 1) {
     state.lastResult.loserId = null;
-    state.lastResult.count = cards.length;
-    log(state, `Tie on ${stat} (${min})! No one loses. Cards move to the pot.`);
+    state.lastResult.count = 0;
+    log(state, `Tie on ${stat} (${min})! No one loses.`);
   } else {
     const loser = tied[0];
-    const winnings = [drawFromDeck(state), drawFromDeck(state)];
+    const winnings = [drawFromDeck(), drawFromDeck()];
     state.lastResult.loserId = loser;
     state.lastResult.count = winnings.length;
     state.hands[loser].push(...winnings);
-    log(state, `${nameOf(state, loser)} had the lowest ${stat} (${min}) and draws 2 random cards.`);
+    log(state, `${nameOf(state, loser)} had the lowest ${stat} (${min}) and pulls 2 cards from the deck.`);
   }
 
   state.activePlay = null;
@@ -268,7 +256,7 @@ export function publicView(state, forPlayerId) {
     order: state.order,
     turnIndex: state.turnIndex,
     activePlayerId: activePlayerId(state),
-    deckCount: state.deck.length,
+    deckCount: POOL_SIZE,
     // While a round is open the leader's card AND the challenged stat stay
     // hidden; each responder only sees their own card (others are placeholders).
     activePlay:
@@ -281,7 +269,6 @@ export function publicView(state, forPlayerId) {
             )
           )
         : state.responses,
-    potCount: state.pot.length,
     lastResult: state.lastResult,
     winnerId: state.winnerId,
     log: state.log.slice(-12),

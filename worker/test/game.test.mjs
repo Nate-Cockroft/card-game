@@ -14,9 +14,6 @@ import {
   isBot,
   publicView,
 } from "../src/game.js";
-import { createDeck } from "../src/cards.js";
-
-const DECK_SIZE = createDeck().length;
 
 function twoPlayerGame() {
   const g = createGame("TEST");
@@ -27,11 +24,10 @@ function twoPlayerGame() {
   return g;
 }
 
-test("starts with 7 cards each and a deck", () => {
+test("starts with 7 cards each", () => {
   const g = twoPlayerGame();
   assert.equal(g.hands.a.length, 7);
   assert.equal(g.hands.b.length, 7);
-  assert.equal(g.deck.length, DECK_SIZE - 14);
   assert.equal(g.phase, "playing");
 });
 
@@ -88,8 +84,6 @@ test("game with a bot plays and the bot keeps playing its turn", () => {
   }
   // round resolved, a winner may or may not exist
   assert.ok(["playing", "finished"].includes(g.phase));
-  const totalCards = g.hands.a.length + g.hands[bot.id].length + g.deck.length + g.pot.length;
-  assert.equal(totalCards, DECK_SIZE);
 });
 
 test("only the active player can play as leader", () => {
@@ -117,25 +111,21 @@ test("leader plays a card and chooses a stat, others respond, loser collects", (
   assert.equal(res.ok, true);
   assert.equal(res.resolved, true);
 
-  // the lowest player collected both cards into their hand
+  // the lowest player has more cards: they gave up 1 and pulled 2
   assert.ok(g.hands[other].length > g.hands[leader].length);
-  // loser nets +1: gave up 1 card, received all 2 played cards
+  // loser nets +1: gave up 1 card, pulled 2 from the magical deck
   assert.ok(g.hands[other].length >= beforeOther + 1);
   assert.equal(g.lastResult.loserId, other);
   assert.equal(g.lastResult.count, 2);
-  const totalCards = g.hands.a.length + g.hands.b.length + g.deck.length + g.pot.length;
-  assert.equal(totalCards, DECK_SIZE);
 });
 
-test("drawing takes a deck card and advances the turn", () => {
+test("drawing pulls a card from the deck and advances the turn", () => {
   const g = twoPlayerGame();
   const leader = activePlayerId(g);
-  const n = g.deck.length;
   const before = g.hands[leader].length;
   const res = drawAsActive(g, leader);
   assert.equal(res.ok, true);
   assert.equal(g.hands[leader].length, before + 1);
-  assert.equal(g.deck.length, n - 1);
   assert.notEqual(activePlayerId(g), leader);
 });
 
@@ -151,7 +141,7 @@ test("responder cannot respond twice", () => {
   assert.equal(r2.ok, false);
 });
 
-test("tie on the lowest stat moves cards to the pot", () => {
+test("tie on the lowest stat means no one loses", () => {
   const g = twoPlayerGame();
   const leader = activePlayerId(g);
   const other = leader === "a" ? "b" : "a";
@@ -160,8 +150,12 @@ test("tie on the lowest stat moves cards to the pot", () => {
   g.hands[other][0] = { ...g.hands[other][0], attack: 5 };
   playAsActive(g, leader, g.hands[leader][0].id, "attack");
   playAsResponder(g, other, g.hands[other][0].id);
-  assert.equal(g.pot.length, 2);
   assert.equal(g.phase, "playing");
+  assert.equal(g.lastResult.loserId, null);
+  assert.equal(g.lastResult.count, 0);
+  // nobody pulled new cards on a tie
+  assert.equal(g.hands[leader].length, 6);
+  assert.equal(g.hands[other].length, 6);
 });
 
 test("a player who empties their hand wins", () => {
@@ -225,26 +219,29 @@ test("played cards stay hidden until the round resolves", () => {
   assert.equal(g.lastResult.played.length, 3);
 });
 
-test("conservation holds and the deck never runs dry", () => {
+test("the magical deck always has a card to pull", () => {
   const g = createGame("TEST");
   addPlayer(g, "a", "Alice");
   addPlayer(g, "b", "Bob");
   addPlayer(g, "c", "Carl");
   addPlayer(g, "d", "Dawn");
   startGame(g);
-  const total = DECK_SIZE;
   for (let round = 0; round < 200 && g.phase !== "finished"; round++) {
     const leader = activePlayerId(g);
-    let res = playAsActive(g, leader, g.hands[leader][0].id, "health");
-    if (!res.ok) break;
+    const res = playAsActive(g, leader, g.hands[leader][0].id, "health");
+    assert.equal(res.ok, true);
     for (const p of g.players) {
       if (p.id !== leader && g.phase === "compare" && g.hands[p.id]?.length) {
         playAsResponder(g, p.id, g.hands[p.id][0].id);
       }
     }
-    const sum =
-      Object.values(g.hands).reduce((n, h) => n + h.length, 0) + g.deck.length + g.pot.length;
-    assert.equal(sum, total, `round ${round}`);
+    if (g.lastResult && g.lastResult.loserId !== null) {
+      assert.equal(g.lastResult.count, 2); // loser always pulls exactly 2
+    }
+    if (g.phase === "playing") {
+      const draw = drawAsActive(g, activePlayerId(g));
+      assert.equal(draw.ok, true); // a card is always available
+    }
   }
 });
 
