@@ -11,6 +11,8 @@ let myId = null;
 let selectedCard = null;
 let lobbies = [];
 let collecting = false;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
 const REVEAL_MS = 1100;
 
 const $ = (id) => document.getElementById(id);
@@ -65,18 +67,54 @@ function generateId() {
   return out;
 }
 
+function seatKey(roomId) {
+  return `cardsgame-seat-${roomId}`;
+}
+
+function stopReconnect() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempts = 0;
+}
+
 function connectGame(roomId, create) {
+  stopReconnect();
   const u = new URL(`${WORKER_URL}/ws`);
   u.searchParams.set("room", roomId);
   u.searchParams.set("name", $("name-input").value.trim() || "Player");
+  const seatId = localStorage.getItem(seatKey(roomId));
+  if (seatId) u.searchParams.set("reconnectId", seatId);
   if (create) u.searchParams.set("create", "1");
   ws = new WebSocket(u.toString());
   ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
-  ws.onclose = () => {
-    if (state && state.phase !== "finished") {
-      setStatus("Disconnected from server. Reconnect to rejoin.");
-    }
-  };
+  ws.onclose = (ev) => handleGameClose(ev, roomId, create);
+}
+
+function handleGameClose(ev, roomId, create) {
+  if (ev && ev.code === 4001) {
+    // the server deliberately refused the join (full / started / gone)
+    setStatus(ev.reason || "Couldn't join that room.");
+    stopReconnect();
+    return;
+  }
+  if (state && state.phase !== "finished") {
+    scheduleReconnect(roomId, create);
+  }
+}
+
+function scheduleReconnect(roomId, create) {
+  if (reconnectAttempts >= 6) {
+    setStatus("Connection lost. That lobby may have disintegrated — try reopening it.");
+    stopReconnect();
+    connectLobby();
+    return;
+  }
+  const delay = reconnectAttempts === 0 ? 1000 : Math.min(12000, 2000 * reconnectAttempts);
+  reconnectAttempts += 1;
+  setStatus(`Connection lost — reconnecting in ${Math.round(delay / 1000)}s…`);
+  reconnectTimer = setTimeout(() => connectGame(roomId, create), delay);
 }
 
 function handleMessage(msg) {
@@ -87,9 +125,13 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === "state") {
+    stopReconnect();
     prevState = state;
     state = msg.state;
     myId = state.myId;
+    try {
+      localStorage.setItem(seatKey(state.code), state.myId);
+    } catch {}
     $("lobby-error").hidden = true;
     render(prevState);
   }
@@ -277,8 +319,10 @@ function renderOpponents() {
     name.textContent = (p.bot ? "🤖 " : "") + (p.id === myId ? p.name + " (you)" : p.name);
     const count = div.appendChild(document.createElement("div"));
     count.className = "opp-count";
-    count.textContent = `${p.handCount} card${p.handCount === 1 ? "" : "s"}`;
-    if (p.id === state.winnerId) count.textContent += " 🏆";
+    count.textContent = p.away
+      ? "reconnecting…"
+      : `${p.handCount} card${p.handCount === 1 ? "" : "s"}`;
+    if (p.id === state.winnerId && !p.away) count.textContent += " 🏆";
     wrap.appendChild(div);
   });
 }

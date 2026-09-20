@@ -30,7 +30,7 @@ export function createGame(code) {
 
 const botNamePool = ["Bot-α", "Bot-β", "Bot-γ", "Bot-δ", "Bot-ε", "Bot-ζ", "Bot-η", "Bot-θ"];
 
-function log(state, msg) {
+export function log(state, msg) {
   state.log.push(msg);
   if (state.log.length > 40) state.log.splice(0, state.log.length - 40);
 }
@@ -106,6 +106,12 @@ export function removePlayer(state, id) {
   state.order = state.order.filter((p) => p.id !== id);
   delete state.hands[id];
   delete state.responses[id];
+  // a disconnect mid-round aborts the round: played cards vanish, seats reset
+  if (state.phase === "compare") {
+    state.activePlay = null;
+    state.responses = {};
+    state.phase = "playing";
+  }
   if (!state.players.length) return;
   if (state.hostId === id) state.hostId = state.players.find((p) => !p.bot)?.id ?? state.players[0].id;
   if (wasActive && state.phase !== "lobby") state.phase = "playing";

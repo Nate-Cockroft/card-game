@@ -22,11 +22,11 @@ export class Lobby {
     await this.state.storage.put("rooms", Object.fromEntries(this.rooms));
   }
 
-  // Drop entries for rooms that vanished, emptied, or went quiet.
+  // Drop entries for rooms that vanished, emptied, went quiet, or lost all humans.
   sweep(now = Date.now()) {
     let changed = false;
     for (const [id, entry] of this.rooms) {
-      if (entry.room && entry.room.count === 0) {
+      if (entry.room && (entry.room.count === 0 || entry.room.humans === 0)) {
         this.rooms.delete(id);
         changed = true;
       } else if (now - (entry.ts || 0) > ENTRY_TTL_MS) {
@@ -49,7 +49,7 @@ export class Lobby {
         return new Response("bad body", { status: 400 });
       }
       const room = body.room;
-      if (body.action === "close" || !room || room.count === 0) {
+      if (body.action === "close" || !room || room.count === 0 || room.humans === 0) {
         const id = room?.id;
         if (id && this.rooms.has(id)) {
           this.rooms.delete(id);

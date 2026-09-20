@@ -6,6 +6,12 @@ Each card has 4 stats: **Health, Speed, Attack, Defense**. Everyone starts with 
 
 Lobbies are listed in the app — no room codes to type. The host can add bots (that pick random cards/stats), cap players at 2–8, and start whenever the lobby has at least 2 (humans + bots).
 
+Dropped connections are forgiven for ~20 seconds: your seat is kept, the other
+players see you as "reconnecting…", and reconnecting over the same link quietly
+re-attaches you in place. After that window the seat is released. Lobbies (and
+robot-only games) that end up with **zero people** disintegrate on their own —
+the room data is deleted and the listing disappears.
+
 - Server-authoritative game logic runs in a **Cloudflare Worker (Durable Object)** — one DO per room, so players can't cheat.
 - Static UI is served by **GitHub Pages**.
 
@@ -88,7 +94,7 @@ Notes:
 
 ## Protocol
 
-Clients open a WebSocket to `/lobby` to receive the list of open rooms, and create/join a room via `/ws?room=<ID>&name=<NAME>[&create=1]` (the host generates the ID; players join by clicking a lobby entry or the invite link — codes are never shown). All messages are JSON:
+Clients open a WebSocket to `/lobby` to receive the list of open rooms, and create/join a room via `/ws?room=<ID>&name=<NAME>[&create=1]` (the host generates the ID; players join by clicking a lobby entry or the invite link — codes are never shown). Reconnecting to a seat you already hold is done with `/ws?...&reconnectId=<myId>`. All messages are JSON:
 
 - C→S `{"type":"start"}` — host starts the game (needs ≥2 players, bots included)
 - C→S `{"type":"settings","handSize":5..9,"maxPlayers":2..8}` — host sets lobby options

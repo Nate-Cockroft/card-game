@@ -9,6 +9,7 @@ import {
   playAsActive,
   playAsResponder,
   drawAsActive,
+  removePlayer,
   resolveRound,
   activePlayerId,
   isBot,
@@ -250,4 +251,22 @@ test("cannot start with fewer than 2 players", () => {
   addPlayer(g, "a", "Alice");
   const res = startGame(g);
   assert.equal(res.ok, false);
+});
+
+test("a disconnect mid-round aborts the round cleanly", () => {
+  const g = createGame("TEST");
+  addPlayer(g, "a", "Alice");
+  addPlayer(g, "b", "Bob");
+  addPlayer(g, "c", "Carl");
+  startGame(g);
+  const leader = activePlayerId(g);
+  const others = g.order.filter((x) => x !== leader);
+  playAsActive(g, leader, g.hands[leader][0].id, "health");
+  assert.equal(g.phase, "compare");
+  // a responder leaves while the round is open
+  removePlayer(g, others[0]);
+  assert.equal(g.phase, "playing");
+  assert.equal(g.activePlay, null);
+  assert.deepEqual(g.responses, {});
+  assert.equal(activePlayerId(g) === leader || activePlayerId(g) === others[1], true);
 });
