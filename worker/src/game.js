@@ -117,16 +117,27 @@ export function removePlayer(state, id) {
   log(state, `${player.name} left the game.`);
 }
 
+export function drawFromDeck(state) {
+  // The deck is "infinite": when it runs out, the pot is recycled into it
+  // (never adds new cards, so total card count is preserved).
+  if (!state.deck.length) {
+    if (state.pot.length) {
+      state.deck = shuffle(state.pot);
+      state.pot = [];
+    } else {
+      state.deck = shuffle(createDeck());
+    }
+  }
+  return state.deck.pop();
+}
+
 export function startGame(state) {
   if (state.phase !== "lobby") return { ok: false, error: "Game already started." };
   if (state.players.length < 2) return { ok: false, error: "Need at least 2 players in the lobby." };
   const n = state.players.length;
-  const cards = shuffle(createDeck());
-  const need = n * state.handSize;
-  if (cards.length < need) return { ok: false, error: `Deck too small for ${n} players at ${state.handSize} cards.` };
-  state.deck = cards.slice(need);
-  state.players.forEach((p, i) => {
-    state.hands[p.id] = cards.slice(i * state.handSize, (i + 1) * state.handSize);
+  state.deck = shuffle(createDeck());
+  state.players.forEach((p) => {
+    state.hands[p.id] = Array.from({ length: state.handSize }, () => drawFromDeck(state));
   });
   state.phase = "playing";
   state.turnIndex = 0;
@@ -143,8 +154,7 @@ export function nameOf(state, id) {
 export function drawAsActive(state, id) {
   if (state.phase !== "playing") return { ok: false, error: "Not your play window." };
   if (activePlayerId(state) !== id) return { ok: false, error: "Not your turn." };
-  if (!state.deck.length) return { ok: false, error: "The deck is empty." };
-  const card = state.deck.pop();
+  const card = drawFromDeck(state);
   state.hands[id].push(card);
   log(state, `${nameOf(state, id)} drew ${card.emoji} ${card.name} from the deck.`);
   advanceTurn(state);
@@ -163,7 +173,7 @@ export function playAsActive(state, id, cardId, stat) {
   state.responses = {};
   state.lastResult = null;
   state.phase = "compare";
-  log(state, `${nameOf(state, id)} plays a card face down and challenges ${stat}!`);
+  log(state, `${nameOf(state, id)} plays a card face down.`);
   return { ok: true };
 }
 
@@ -194,26 +204,26 @@ export function resolveRound(state) {
   const min = Math.min(...values);
   const tied = owners.filter((id, i) => cards[i][stat] === min);
 
+  // every played card goes to the pot; the loser instead draws 2 random cards
+  state.pot.push(...cards);
+  state.lastResult = { played: cards, stat };
+
   if (tied.length > 1) {
-    state.pot.push(...cards);
-    state.lastResult = { loserId: null, count: cards.length, played: cards, stat };
-    state.activePlay = null;
-    state.responses = {};
-    state.phase = "playing";
+    state.lastResult.loserId = null;
+    state.lastResult.count = cards.length;
     log(state, `Tie on ${stat} (${min})! No one loses. Cards move to the pot.`);
   } else {
     const loser = tied[0];
-    const winnings = [...cards, ...state.pot];
-    state.pot = [];
-    state.lastResult = { loserId: loser, count: winnings.length, played: cards, stat };
+    const winnings = [drawFromDeck(state), drawFromDeck(state)];
+    state.lastResult.loserId = loser;
+    state.lastResult.count = winnings.length;
     state.hands[loser].push(...winnings);
-    log(state, `${nameOf(state, loser)} had the lowest ${stat} (${min}) and collects ${
-      winnings.length
-    } card(s) to their hand.`);
-    state.activePlay = null;
-    state.responses = {};
-    state.phase = "playing";
+    log(state, `${nameOf(state, loser)} had the lowest ${stat} (${min}) and draws 2 random cards.`);
   }
+
+  state.activePlay = null;
+  state.responses = {};
+  state.phase = "playing";
 
   checkForWinner(state);
   if (state.phase !== "finished") {
@@ -259,12 +269,10 @@ export function publicView(state, forPlayerId) {
     turnIndex: state.turnIndex,
     activePlayerId: activePlayerId(state),
     deckCount: state.deck.length,
-    // While a round is open, hide the leader's card; each responder only sees
-    // their own card (others appear as face-down placeholders).
+    // While a round is open the leader's card AND the challenged stat stay
+    // hidden; each responder only sees their own card (others are placeholders).
     activePlay:
-      state.activePlay && state.phase === "compare"
-        ? { stat: state.activePlay.stat }
-        : state.activePlay,
+      state.activePlay && state.phase === "compare" ? { played: true } : state.activePlay,
     responses:
       state.phase === "compare"
         ? Object.fromEntries(

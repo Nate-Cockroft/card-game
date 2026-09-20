@@ -206,9 +206,9 @@ test("played cards stay hidden until the round resolves", () => {
 
   playAsActive(g, leader, g.hands[leader][0].id, "health");
 
-  // while the round is open no one sees the leader's card, only the stat
-  assert.deepEqual(publicView(g, leader).activePlay, { stat: "health" });
-  assert.deepEqual(publicView(g, r1).activePlay, { stat: "health" });
+  // while the round is open no one sees the leader's card or the stat
+  assert.deepEqual(publicView(g, leader).activePlay, { played: true });
+  assert.deepEqual(publicView(g, r1).activePlay, { played: true });
 
   playAsResponder(g, r1, g.hands[r1][0].id); // compare is still open
 
@@ -223,6 +223,29 @@ test("played cards stay hidden until the round resolves", () => {
   // after the resolve the played cards are revealed in lastResult
   assert.equal(g.lastResult.stat, "health");
   assert.equal(g.lastResult.played.length, 3);
+});
+
+test("conservation holds and the deck never runs dry", () => {
+  const g = createGame("TEST");
+  addPlayer(g, "a", "Alice");
+  addPlayer(g, "b", "Bob");
+  addPlayer(g, "c", "Carl");
+  addPlayer(g, "d", "Dawn");
+  startGame(g);
+  const total = DECK_SIZE;
+  for (let round = 0; round < 200 && g.phase !== "finished"; round++) {
+    const leader = activePlayerId(g);
+    let res = playAsActive(g, leader, g.hands[leader][0].id, "health");
+    if (!res.ok) break;
+    for (const p of g.players) {
+      if (p.id !== leader && g.phase === "compare" && g.hands[p.id]?.length) {
+        playAsResponder(g, p.id, g.hands[p.id][0].id);
+      }
+    }
+    const sum =
+      Object.values(g.hands).reduce((n, h) => n + h.length, 0) + g.deck.length + g.pot.length;
+    assert.equal(sum, total, `round ${round}`);
+  }
 });
 
 test("cannot start with fewer than 2 players", () => {

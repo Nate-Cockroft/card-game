@@ -111,6 +111,19 @@ const CARD_TEMPLATES = [
   ["Hell", "🔥"],
   ["Heaven", "☁️"],
   ["Religion", "⛪"],
+  ["Area 51", "🛸"],
+  ["Gas Prices", "⛽"],
+  ["Twitter", "🐦"],
+  ["The Concept of Death", "💀"],
+  ["Hot Dog Water", "🌭"],
+  ["The Void", "🕳️"],
+  ["An Existential Crisis", "🤯"],
+  ["Procrastination", "🛌"],
+  ["Terms & Conditions", "📄"],
+  ["Monday", "📅"],
+  ["A Parking Space", "🅿️"],
+  ["The Illuminati", "👁️"],
+  ["Free WiFi", "📶"],
 ];
 
 function mulberry32(seed) {

@@ -173,7 +173,7 @@ function renderGame(prev) {
   if (resolving) {
     const result = state.lastResult;
     collecting = true;
-    $("pot-target").hidden = result.loserId !== null;
+    $("pot-target").hidden = false;
     showResultBanner(result);
     const cards = showReveal(result.played || [], result.stat);
     setTimeout(() => {
@@ -218,16 +218,9 @@ function flyCard(el, fromEl, opts = {}) {
   el.classList.add("fly", opts.cls || "fly-card");
 }
 
-// Fly the just-played cards toward the loser (or the pot on a tie).
+// Fly the just-played cards toward the pot (every played card is potted now).
 function animateCardsTo(cards, result, done) {
-  let targetEl;
-  if (result.loserId === null) {
-    targetEl = $("pot-target");
-  } else if (result.loserId === myId) {
-    targetEl = $("hand");
-  } else {
-    targetEl = document.querySelector(`.opponent[data-player="${result.loserId}"]`);
-  }
+  const targetEl = $("pot-target");
   const target = targetEl && targetEl.isConnected ? targetEl : $("table");
   const t = target.getBoundingClientRect();
   let remaining = cards.length;
@@ -261,7 +254,7 @@ function showResultBanner(result) {
   b.textContent =
     result.loserId === null
       ? `Tie! ${result.count} card${result.count === 1 ? "" : "s"} go to the pot.`
-      : `${nameOf(result.loserId)} loses & collects ${result.count} card${result.count === 1 ? "" : "s"}!`;
+      : `${nameOf(result.loserId)} had the lowest ${STAT_LABELS[result.stat] || "stat"}! They draw ${result.count} random card${result.count === 1 ? "" : "s"}.`;
   b.classList.remove("fade");
   void b.offsetWidth;
   b.classList.add("show");
@@ -338,7 +331,7 @@ function renderTable() {
 
   const callout = el.appendChild(document.createElement("div"));
   callout.className = "stat-callout";
-  callout.textContent = `Challenging ${STAT_LABELS[state.activePlay.stat]}!`;
+  callout.textContent = "Everyone lays a card face down.";
 
   const led = el.appendChild(document.createElement("div"));
   led.className = "led-card";
@@ -398,7 +391,7 @@ function renderStatus() {
   } else if (state.phase === "compare") {
     if (state.activePlayerId === myId) text = "Round is open — waiting for everyone to play their card.";
     else if (state.responses[myId]) text = "You've played. Waiting for the rest…";
-    else text = `${nameOf(state.activePlayerId)} challenged ${STAT_LABELS[state.activePlay.stat]}. Pick your card!`;
+    else text = `${nameOf(state.activePlayerId)} played a card face down. Pick your card!`;
   }
   setStatus(text);
 }
