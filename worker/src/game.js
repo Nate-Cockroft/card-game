@@ -1,5 +1,8 @@
 import {
   createDeck,
+  PACKS,
+  packSize,
+  validPackIds,
   DEFAULT_HAND_SIZE,
   DEFAULT_MAX_PLAYERS,
   MIN_HAND_SIZE,
@@ -16,6 +19,7 @@ export function createGame(code) {
     hostId: null,
     handSize: DEFAULT_HAND_SIZE,
     maxPlayers: DEFAULT_MAX_PLAYERS,
+    enabledPacks: PACKS.map((p) => p.id),
     players: [], // [{id, name, bot}]
     order: [], // fixed seat order of player ids
     turnIndex: 0,
@@ -120,11 +124,24 @@ export function removePlayer(state, id) {
   log(state, `${player.name} left the game.`);
 }
 
-const POOL_SIZE = createDeck().length;
+// Disable/enable card packs. Host-only, lobby-only. At least one pack must stay.
+export function setPacks(state, hostId, enabledPacks) {
+  if (state.phase !== "lobby") return { ok: false, error: "Packs can only be changed before the game starts." };
+  if (state.hostId !== hostId) return { ok: false, error: "Only the host can change packs." };
+  if (!validPackIds(enabledPacks)) return { ok: false, error: "Invalid pack selection." };
+  state.enabledPacks = [...enabledPacks];
+  log(
+    state,
+    `Packs: ${PACKS.filter((p) => state.enabledPacks.includes(p.id))
+      .map((p) => p.label)
+      .join(", ")}.`
+  );
+  return { ok: true };
+}
 
 // The "deck" is a magical infinite thing: you can pull any card out of it.
-export function drawFromDeck() {
-  const pool = createDeck();
+export function drawFromDeck(state) {
+  const pool = createDeck(state.enabledPacks);
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -132,7 +149,7 @@ export function startGame(state) {
   if (state.phase !== "lobby") return { ok: false, error: "Game already started." };
   if (state.players.length < 2) return { ok: false, error: "Need at least 2 players in the lobby." };
   state.players.forEach((p) => {
-    state.hands[p.id] = Array.from({ length: state.handSize }, () => drawFromDeck());
+    state.hands[p.id] = Array.from({ length: state.handSize }, () => drawFromDeck(state));
   });
   state.phase = "playing";
   state.turnIndex = 0;
@@ -149,7 +166,7 @@ export function nameOf(state, id) {
 export function drawAsActive(state, id) {
   if (state.phase !== "playing") return { ok: false, error: "Not your play window." };
   if (activePlayerId(state) !== id) return { ok: false, error: "Not your turn." };
-  const card = drawFromDeck();
+  const card = drawFromDeck(state);
   state.hands[id].push(card);
   log(state, `${nameOf(state, id)} pulled a card out of the magical deck.`);
   advanceTurn(state);
@@ -208,7 +225,7 @@ export function resolveRound(state) {
     log(state, `Tie on ${stat} (${min})! No one loses.`);
   } else {
     const loser = tied[0];
-    const winnings = [drawFromDeck(), drawFromDeck()];
+    const winnings = [drawFromDeck(state), drawFromDeck(state)];
     state.lastResult.loserId = loser;
     state.lastResult.count = winnings.length;
     state.hands[loser].push(...winnings);
@@ -262,7 +279,14 @@ export function publicView(state, forPlayerId) {
     order: state.order,
     turnIndex: state.turnIndex,
     activePlayerId: activePlayerId(state),
-    deckCount: POOL_SIZE,
+    deckCount: createDeck(state.enabledPacks).length,
+    packs: PACKS.map((p) => ({
+      id: p.id,
+      label: p.label,
+      emoji: p.emoji,
+      count: packSize(p.id),
+      enabled: !state.enabledPacks || state.enabledPacks.includes(p.id),
+    })),
     // While a round is open the leader's card AND the challenged stat stay
     // hidden; each responder only sees their own card (others are placeholders).
     activePlay:

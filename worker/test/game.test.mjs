@@ -6,6 +6,8 @@ import {
   addBot,
   startGame,
   setSettings,
+  setPacks,
+  drawFromDeck,
   playAsActive,
   playAsResponder,
   drawAsActive,
@@ -15,6 +17,7 @@ import {
   isBot,
   publicView,
 } from "../src/game.js";
+import { PACKS, packSize, createDeck } from "../src/cards.js";
 
 function twoPlayerGame() {
   const g = createGame("TEST");
@@ -244,6 +247,62 @@ test("the magical deck always has a card to pull", () => {
       assert.equal(draw.ok, true); // a card is always available
     }
   }
+});
+
+test("every pack covers every card exactly once", () => {
+  const ids = new Set(PACKS.map((p) => p.id));
+  const sum = PACKS.reduce((n, p) => n + packSize(p.id), 0);
+  assert.equal(sum, createDeck().length);
+  assert.equal(ids.size, PACKS.length);
+});
+
+test("all packs are on by default; deck is the full roster", () => {
+  const g = createGame("X");
+  assert.equal(g.enabledPacks.length, PACKS.length);
+  assert.equal(publicView(g, "a").deckCount, createDeck().length);
+  assert.equal(publicView(g, "a").packs.every((p) => p.enabled), true);
+});
+
+test("host may disable packs and the magical deck shrinks to match", () => {
+  const g = createGame("X");
+  addPlayer(g, "a", "Alice");
+  addPlayer(g, "b", "Bob");
+  g.hostId = "a";
+  const res = setPacks(g, "a", ["politicians", "numbers"]);
+  assert.equal(res.ok, true);
+  const kept = packSize("politicians") + packSize("numbers");
+  assert.equal(publicView(g, "a").deckCount, kept);
+  // draws only come from the enabled packs
+  const allowed = new Set(createDeck(["politicians", "numbers"]).map((c) => c.name));
+  for (let i = 0; i < 60; i++) {
+    const card = drawFromDeck(g);
+    assert.equal(allowed.has(card.name), true, `drew "${card.name}" from a disabled pack`);
+  }
+  const view = publicView(g, "a");
+  assert.equal(view.packs.filter((p) => p.enabled).length, 2);
+});
+
+test("pack toggles are host-only and lobby-only", () => {
+  const g = createGame("X");
+  addPlayer(g, "a", "Alice");
+  addPlayer(g, "b", "Bob");
+  g.hostId = "a";
+  assert.equal(setPacks(g, "b", ["numbers"]).ok, false);
+  assert.equal(setPacks(g, "a", ["numbers", "numbers"]).ok, false); // duplicates
+  assert.equal(setPacks(g, "a", []).ok, false); // empty
+  assert.equal(setPacks(g, "a", ["bogus"]).ok, false); // unknown pack
+  startGame(g);
+  assert.equal(setPacks(g, "a", ["numbers"]).ok, false); // game already started
+});
+
+test("prev hands keep working after packs change (only affects drawing)", () => {
+  const g = createGame("X");
+  addPlayer(g, "a", "Alice");
+  addPlayer(g, "b", "Bob");
+  g.hostId = "a";
+  startGame(g);
+  setPacks(g, "a", ["numbers"]); // rejected: game already started
+  assert.equal(g.enabledPacks.length, PACKS.length); // so nothing changed
 });
 
 test("cannot start with fewer than 2 players", () => {

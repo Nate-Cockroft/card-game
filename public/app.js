@@ -191,6 +191,34 @@ function renderWaiting() {
     roster.appendChild(li);
   });
 
+  const packs = state.packs || [];
+  const packList = $("pack-list");
+  packList.innerHTML = "";
+  const enabledCount = packs.filter((p) => p.enabled).length;
+  $("pack-total").textContent =
+    `${enabledCount}/${packs.length} packs on · ${state.deckCount} card types`;
+  packs.forEach((p) => {
+    const btn = document.createElement("label");
+    btn.className = "pack" + (p.enabled ? "" : " off");
+    btn.innerHTML =
+      `<span class="pack-emoji">${p.emoji}</span>` +
+      `<span class="pack-label">${p.label}</span>` +
+      `<span class="pack-count">${p.count}</span>`;
+    if (isHost) {
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = p.enabled;
+      cb.dataset.packId = p.id;
+      cb.onchange = sendPackChange;
+      btn.prepend(cb);
+    }
+    packList.appendChild(btn);
+    if (isHost && !p.enabled) btn.title = "Click to enable";
+  });
+  $("packs-note").textContent = isHost
+    ? "Disable a pack and its cards can't appear (the magical deck shrinks). Take a pick!"
+    : "The host chose which packs are in play.";
+
   const startBtn = $("start-btn");
   startBtn.disabled = !(isHost && state.players.length >= 2);
   startBtn.textContent = isHost ? "Start game" : "Waiting for host…";
@@ -205,6 +233,17 @@ function renderWaiting() {
     send({ type: "settings", ...v });
   };
   $("waiting-error").hidden = true;
+}
+
+function sendPackChange() {
+  const enabledPacks = (state.packs || [])
+    .filter((p) => {
+      const cb = document.querySelector(`#pack-list input[data-pack-id="${p.id}"]`);
+      return cb && cb.checked;
+    })
+    .map((p) => p.id);
+  if (enabledPacks.length === 0) return; // at least one pack is mandatory
+  send({ type: "packs", enabledPacks });
 }
 
 function renderGame(prev) {

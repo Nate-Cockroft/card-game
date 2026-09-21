@@ -98,11 +98,12 @@ Clients open a WebSocket to `/lobby` to receive the list of open rooms, and crea
 
 - C→S `{"type":"start"}` — host starts the game (needs ≥2 players, bots included)
 - C→S `{"type":"settings","handSize":5..9,"maxPlayers":2..8}` — host sets lobby options
+- C→S `{"type":"packs","enabledPacks":["space","politicians",...]}` — host toggles card packs on/off (disabled packs' cards can't be drawn; at least one pack must stay on)
 - C→S `{"type":"addBot"}` — host adds a bot
 - C→S `{"type":"play","asLeader":true,"cardId":..,"stat":..}` — leader plays
 - C→S `{"type":"play","asLeader":false,"cardId":..}` — responder answers
 - C→S `{"type":"draw"}` — leader draws instead of playing
-- S→C `{"type":"state","state":{...}}` — full public view; each client only sees its own hand
+- S→C `{"type":"state","state":{...}}` — full public view; each client only sees its own hand. State carries `packs` (the 13 packs with counts + `enabled` flags) and `deckCount` (card types in the currently enabled packs)
 - S→C `{"type":"lobbies","lobbies":[...]}` — room directory via the `/lobby` socket
 
 Bots are server-driven: when it's a bot's play window the worker auto-plays a random card and stat (only the human-relevant plays are sent to the client). Rooms auto-expire after 4 hours idle and are swept from the directory after 30 minutes without activity.

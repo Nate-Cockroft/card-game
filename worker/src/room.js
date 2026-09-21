@@ -5,6 +5,7 @@ import {
   removePlayer,
   startGame,
   setSettings,
+  setPacks,
   playAsActive,
   playAsResponder,
   drawAsActive,
@@ -264,6 +265,21 @@ export class Room {
         }
         {
           const res = setSettings(this.game, playerId, msg);
+          if (!res.ok) {
+            this.sendTo(playerId, { type: "error", message: res.error });
+            return;
+          }
+        }
+        await this.syncLobby("open");
+        break;
+
+      case "packs":
+        if (this.game.hostId !== playerId) {
+          this.sendTo(playerId, { type: "error", message: "Only the host can change packs." });
+          return;
+        }
+        {
+          const res = setPacks(this.game, playerId, msg.enabledPacks);
           if (!res.ok) {
             this.sendTo(playerId, { type: "error", message: res.error });
             return;
